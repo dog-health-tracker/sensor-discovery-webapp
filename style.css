@@ -8,7 +8,6 @@
     --accent: #0f766e;
     --accent-text: #ffffff;
     --live: #16a34a;
-    --stop: #b45309;
     --record: #be123c;
     --disabled: #9a9aa3;
 }
@@ -24,7 +23,6 @@
         --accent: #2dd4bf;
         --accent-text: #0e0e11;
         --live: #4ade80;
-        --stop: #fbbf24;
         --record: #fb7185;
         --disabled: #55555f;
     }
@@ -51,8 +49,6 @@ h2 {
     margin: 0;
     font-size: 1.05rem;
 }
-
-/* Header and record bar */
 
 .topbar,
 .recordbar {
@@ -174,8 +170,6 @@ h2 {
     padding: 12px 20px;
 }
 
-/* Controls */
-
 .button {
     min-height: 48px;
     padding: 0 22px;
@@ -234,12 +228,6 @@ select {
     font: inherit;
 }
 
-select:disabled {
-    color: var(--disabled);
-}
-
-/* Sensor cards */
-
 .sensors {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(420px, 1fr));
@@ -274,20 +262,20 @@ select:disabled {
     font-size: 0.85rem;
 }
 
-.button.stream {
-    min-width: 108px;
-    color: var(--live);
-    border-color: var(--live);
+.sensor-enable {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 40px;
+    color: var(--muted);
+    cursor: pointer;
 }
 
-.button.stream:disabled {
-    color: var(--disabled);
-    border-color: var(--border);
-}
-
-.button.stream.active {
-    color: var(--stop);
-    border-color: var(--stop);
+.sensor-enable input {
+    width: 20px;
+    height: 20px;
+    margin: 0;
+    accent-color: var(--accent);
 }
 
 .plot {

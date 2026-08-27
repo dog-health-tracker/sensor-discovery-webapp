@@ -19,6 +19,11 @@ const message = document.getElementById("message");
 const sensorList = document.getElementById("sensors");
 
 const recorder = createRecorder();
+const savedWindow = localStorage.getItem("sensor-disc.chart-window");
+
+if ([...windowSelect.options].some(option => option.value === savedWindow)) {
+    windowSelect.value = savedWindow;
+}
 
 let timeOrigin = null;
 
@@ -39,6 +44,10 @@ const cards = sensors.map(sensor =>
 );
 
 sensorList.append(...cards.map(card => card.element));
+
+for (const card of cards) {
+    card.setWindow(Number(windowSelect.value));
+}
 
 function showBattery(view) {
     const percent = view.getUint8(0);
@@ -62,6 +71,8 @@ function showBatteryStatus(view) {
 }
 
 function showDisconnected() {
+    const downloaded = finishRecording();
+
     linkStatus.textContent = "Not connected";
     linkStatus.classList.remove("connected");
     connectButton.textContent = "Connect";
@@ -69,14 +80,14 @@ function showDisconnected() {
     battery.hidden = true;
     batteryStatus.textContent = "";
     batteryStatus.hidden = true;
-    recordButton.disabled = !recorder.isRecording();
-
-    if (recorder.isRecording()) {
-        showMessage("Link lost while recording. Press Stop and save to keep what was captured.");
-    }
+    recordButton.disabled = true;
 
     for (const card of cards) {
         card.detach();
+    }
+
+    if (downloaded) {
+        showMessage("Disconnected while recording. The CSV file was downloaded.");
     }
 }
 
@@ -131,31 +142,50 @@ connectButton.addEventListener("click", async () => {
     }
 });
 
-recordButton.addEventListener("click", () => {
+function finishRecording() {
+    if (!recorder.isRecording()) {
+        return false;
+    }
+
+    recorder.stop();
+    recorder.download();
+    recordButton.textContent = "Start recording";
+    recordButton.classList.remove("active");
+    recordStatus.classList.remove("recording");
+
+    return true;
+}
+
+recordButton.addEventListener("click", async () => {
     if (recorder.isRecording()) {
-        recorder.stop();
-        recorder.download();
-        recordButton.textContent = "Record CSV";
-        recordButton.classList.remove("active");
-        recordStatus.classList.remove("recording");
+        finishRecording();
+        recordButton.disabled = true;
+        await Promise.all(cards.map(card => card.stopRecording()));
+        recordButton.disabled = !isConnected();
 
         return;
     }
 
-    if (!cards.some(card => card.isStreaming())) {
-        showMessage("Start at least one sensor before recording.");
+    if (!cards.some(card => card.canRecord())) {
+        showMessage("Enable at least one sensor available on this device.");
 
         return;
     }
 
     showMessage("");
     recorder.start();
-    recordButton.textContent = "Stop and save";
+    recordButton.textContent = "Stop and download";
     recordButton.classList.add("active");
     recordStatus.classList.add("recording");
+    recordButton.disabled = true;
+
+    await Promise.all(cards.map(card => card.startRecording()));
+    recordButton.disabled = !isConnected();
 });
 
 windowSelect.addEventListener("change", () => {
+    localStorage.setItem("sensor-disc.chart-window", windowSelect.value);
+
     for (const card of cards) {
         card.setWindow(Number(windowSelect.value));
     }

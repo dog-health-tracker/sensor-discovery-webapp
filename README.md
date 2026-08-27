@@ -2,8 +2,8 @@
 
 Web Bluetooth app for streaming, watching and logging the Sensor Disc sensors.
 Built for vet clinicians and researchers running test sessions on a dog: every
-sensor gets its own graph, its own start/stop button and its own settings, and
-one button records every running sensor to a CSV.
+sensor gets its own graph, enable checkbox and settings, and one button starts
+and records every enabled sensor to a CSV.
 
 ## Running it
 
@@ -68,9 +68,10 @@ that the browser never exposes.
 
 ## CSV
 
-**Record CSV** starts capturing every sensor that is running, and **Stop and
-save** downloads the file. Sensors started or stopped mid-recording appear and
-disappear in their own columns.
+**Start recording** applies the displayed settings and starts every enabled
+sensor. **Stop and download** stops them and downloads the file. A disconnect
+also stops the recording and downloads the captured data. The browser keeps
+the enabled sensors, sensor settings and chart window across reloads.
 
 One row per sample. `time_s` counts from the first recorded sample, columns
 carry ASCII names with the unit on the end, and a cell is blank when that

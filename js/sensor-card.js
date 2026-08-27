@@ -16,7 +16,7 @@ import {
     packetHeaderBytes,
 } from "./sensors.js";
 
-import { hasCharacteristic, readValue, subscribe, writeValue } from "./bluetooth.js";
+import { hasCharacteristic, subscribe, writeValue } from "./bluetooth.js";
 
 Chart.register(LineController, LineElement, PointElement, LinearScale);
 
@@ -37,7 +37,6 @@ function buildSelect(labels, onChange) {
         select.append(option);
     }
 
-    select.disabled = true;
     select.addEventListener("change", () => onChange(Number(select.value)));
 
     return select;
@@ -53,6 +52,11 @@ function labelledControl(text, select) {
 
 export function createSensorCard(sensor, { recorder, sessionSeconds, showMessage }) {
     const config = defaultConfig(sensor);
+    const savedConfig = JSON.parse(localStorage.getItem(`sensor-disc.${sensor.key}`));
+
+    if (Array.isArray(savedConfig) && savedConfig.length === configBytes) {
+        config.set(savedConfig);
+    }
 
     const buckets = sensor.channels.map(() => null);
     const latestValues = sensor.channels.map(() => null);
@@ -89,13 +93,16 @@ export function createSensorCard(sensor, { recorder, sessionSeconds, showMessage
 
     title.append(heading, part);
 
-    const streamButton = document.createElement("button");
-    streamButton.type = "button";
-    streamButton.className = "button stream";
-    streamButton.textContent = "Start";
-    streamButton.disabled = true;
+    const enableLabel = document.createElement("label");
+    enableLabel.className = "sensor-enable";
 
-    header.append(title, streamButton);
+    const enableCheckbox = document.createElement("input");
+    enableCheckbox.type = "checkbox";
+    enableCheckbox.checked = config[0] === 1;
+
+    enableLabel.append(enableCheckbox, " Enable");
+
+    header.append(title, enableLabel);
 
     const plot = document.createElement("div");
     plot.className = "plot";
@@ -135,7 +142,7 @@ export function createSensorCard(sensor, { recorder, sessionSeconds, showMessage
         sensor.rates.map(rate => `${rate} Hz`),
         index => {
             config[1] = index;
-            applyConfig();
+            saveConfig();
         }
     );
 
@@ -144,7 +151,7 @@ export function createSensorCard(sensor, { recorder, sessionSeconds, showMessage
     const controlSelects = sensor.controls.map(control => {
         const select = buildSelect(control.options.map(controlLabel), index => {
             config[control.byte] = controlValue(control, index);
-            applyConfig();
+            saveConfig();
         });
 
         settings.append(labelledControl(control.label, select));
@@ -267,7 +274,6 @@ export function createSensorCard(sensor, { recorder, sessionSeconds, showMessage
         const intervalMicroseconds = 1e6 / rate;
         const values = new Array(channelCount);
 
-        // The reported count and a timestamp gap measure the same loss
         const reportedDropped = view.getUint32(packetDroppedOffset, true);
         const gapMicroseconds =
             packetEndMicroseconds === null ? 0 : startMicroseconds - packetEndMicroseconds;
@@ -326,11 +332,8 @@ export function createSensorCard(sensor, { recorder, sessionSeconds, showMessage
     }
 
     function refreshControls() {
-        const streaming = config[0] === 1;
-
         rateSelect.value = String(config[1]);
-        streamButton.textContent = streaming ? "Stop" : "Start";
-        streamButton.classList.toggle("active", streaming);
+        enableCheckbox.checked = config[0] === 1;
 
         sensor.controls.forEach((control, index) => {
             controlSelects[index].value = String(controlIndex(control, config[control.byte]));
@@ -347,32 +350,22 @@ export function createSensorCard(sensor, { recorder, sessionSeconds, showMessage
         sampleRate = 0;
     }
 
-    async function applyConfig() {
+    function saveConfig() {
         refreshControls();
+        localStorage.setItem(`sensor-disc.${sensor.key}`, JSON.stringify(Array.from(config)));
 
-        if (config[0] === 1) {
-            clearPlot();
-            resetStatistics();
+        if (!present || !recorder.isRecording()) {
+            return;
         }
 
-        try {
-            await writeValue(sensor.configUuid, Uint8Array.from(config));
-        } catch (error) {
+        writeValue(sensor.configUuid, Uint8Array.from(config)).catch(error => {
             showMessage(`${sensor.name}: ${error.message}`);
-        }
+        });
     }
 
-    function receiveConfig(view) {
-        for (let index = 0; index < configBytes; index++) {
-            config[index] = view.getUint8(index);
-        }
-
-        refreshControls();
-    }
-
-    streamButton.addEventListener("click", () => {
-        config[0] = config[0] === 1 ? 0 : 1;
-        applyConfig();
+    enableCheckbox.addEventListener("change", () => {
+        config[0] = enableCheckbox.checked ? 1 : 0;
+        saveConfig();
     });
 
     refreshControls();
@@ -390,38 +383,51 @@ export function createSensorCard(sensor, { recorder, sessionSeconds, showMessage
             }
 
             await subscribe(sensor.dataUuid, receivePacket);
-            await subscribe(sensor.configUuid, receiveConfig);
-
-            const value = await readValue(sensor.configUuid);
-
-            if (value && value.byteLength >= configBytes) {
-                receiveConfig(value);
-            }
-
-            streamButton.disabled = false;
-            rateSelect.disabled = false;
-
-            for (const select of controlSelects) {
-                select.disabled = false;
-            }
         },
 
         detach() {
             present = false;
-            config[0] = 0;
             part.textContent = sensor.part;
-            streamButton.disabled = true;
-            rateSelect.disabled = true;
-
-            for (const select of controlSelects) {
-                select.disabled = true;
-            }
-
-            refreshControls();
         },
 
-        isStreaming() {
+        canRecord() {
             return present && config[0] === 1;
+        },
+
+        async startRecording() {
+            if (!present) {
+                return false;
+            }
+
+            if (config[0] === 1) {
+                clearPlot();
+                resetStatistics();
+            }
+
+            try {
+                await writeValue(sensor.configUuid, Uint8Array.from(config));
+
+                return config[0] === 1;
+            } catch (error) {
+                showMessage(`${sensor.name}: ${error.message}`);
+
+                return false;
+            }
+        },
+
+        async stopRecording() {
+            if (!present || config[0] !== 1) {
+                return;
+            }
+
+            const stoppedConfig = Uint8Array.from(config);
+            stoppedConfig[0] = 0;
+
+            try {
+                await writeValue(sensor.configUuid, stoppedConfig);
+            } catch (error) {
+                showMessage(`${sensor.name}: ${error.message}`);
+            }
         },
 
         setWindow(seconds) {
