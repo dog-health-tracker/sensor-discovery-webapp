@@ -3,8 +3,6 @@ import { connect, disconnect, isConnected, readValue, subscribe } from "./blueto
 import { createRecorder } from "./recorder.js";
 import { createSensorCard } from "./sensor-card.js";
 
-const redrawIntervalMilliseconds = 50;
-
 const connectButton = document.getElementById("connect");
 const linkStatus = document.getElementById("link-status");
 const battery = document.getElementById("battery");
@@ -39,13 +37,38 @@ function showMessage(text) {
     message.textContent = text;
 }
 
+let redrawScheduled = false;
+
+function requestRedraw() {
+    if (redrawScheduled) {
+        return;
+    }
+
+    redrawScheduled = true;
+    window.setTimeout(() => requestAnimationFrame(() => {
+        redrawScheduled = false;
+
+        for (const card of cards) {
+            card.redraw();
+        }
+    }), 100);
+}
+
 const cards = sensors.map(sensor =>
-    createSensorCard(sensor, { recorder, sessionSeconds, showMessage })
+    createSensorCard(sensor, { recorder, sessionSeconds, showMessage, requestRedraw })
 );
 
 sensorList.append(...cards.map(card => card.element));
 
+const cardsByElement = new Map(cards.map(card => [card.element, card]));
+const cardObserver = new IntersectionObserver(entries => {
+    for (const entry of entries) {
+        cardsByElement.get(entry.target).setVisible(entry.isIntersecting);
+    }
+});
+
 for (const card of cards) {
+    cardObserver.observe(card.element);
     card.setWindow(Number(windowSelect.value));
 }
 
@@ -152,6 +175,7 @@ function finishRecording() {
     recordButton.textContent = "Start recording";
     recordButton.classList.remove("active");
     recordStatus.classList.remove("recording");
+    refreshRecordStatus();
 
     return true;
 }
@@ -178,6 +202,7 @@ recordButton.addEventListener("click", async () => {
     recordButton.classList.add("active");
     recordStatus.classList.add("recording");
     recordButton.disabled = true;
+    refreshRecordStatus();
 
     await Promise.all(cards.map(card => card.startRecording()));
     recordButton.disabled = !isConnected();
@@ -249,23 +274,7 @@ function refreshRecordStatus() {
     recordStatus.textContent = rows === "0" ? "Not recording" : `Saved ${rows} rows`;
 }
 
-let lastRedraw = 0;
-
-function redraw(now) {
-    requestAnimationFrame(redraw);
-
-    if (now - lastRedraw < redrawIntervalMilliseconds) {
-        return;
-    }
-
-    lastRedraw = now;
-
-    for (const card of cards) {
-        card.redraw();
-    }
-
+window.setInterval(() => {
     refreshRecordStatus();
     refreshLinkRate();
-}
-
-requestAnimationFrame(redraw);
+}, 1000);

@@ -91,9 +91,9 @@ export const sensors = [
         dataUuid: "5e550301-1487-4453-8e57-6325943ddeba",
         configUuid: "5e550302-1487-4453-8e57-6325943ddeba",
         channels: [
-            { key: "green", label: "Green", unit: "nA", decimals: 2 },
-            { key: "infrared", label: "Infrared", unit: "nA", decimals: 2 },
-            { key: "red", label: "Red", unit: "nA", decimals: 2 },
+            { key: "green", label: "Green", unit: "nA", decimals: 2, colour: "#22c55e" },
+            { key: "infrared", label: "Infrared", unit: "nA", decimals: 2, colour: "#f97316" },
+            { key: "red", label: "Red", unit: "nA", decimals: 2, colour: "#ef4444" },
         ],
         rates: [25, 50, 100, 200, 400],
         defaultRate: 2,
@@ -222,7 +222,7 @@ for (const sensor of sensors) {
         const unit = asciiUnits[channel.unit] ?? channel.unit;
         const name = channel.key === sensor.key ? sensor.key : `${sensor.key}_${channel.key}`;
 
-        channel.colour = channelPalette[index % channelPalette.length];
+        channel.colour ??= channelPalette[index % channelPalette.length];
         channel.axis = units.indexOf(channel.unit) === 0 ? "y" : "y2";
         channel.column = `${name}_${unit}`;
     });

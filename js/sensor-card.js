@@ -50,7 +50,10 @@ function labelledControl(text, select) {
     return label;
 }
 
-export function createSensorCard(sensor, { recorder, sessionSeconds, showMessage }) {
+export function createSensorCard(
+    sensor,
+    { recorder, sessionSeconds, showMessage, requestRedraw }
+) {
     const config = defaultConfig(sensor);
     const savedConfig = JSON.parse(localStorage.getItem(`sensor-disc.${sensor.key}`));
 
@@ -66,6 +69,7 @@ export function createSensorCard(sensor, { recorder, sessionSeconds, showMessage
     let latestTime = 0;
     let dirty = false;
     let present = false;
+    let visible = true;
 
     let receivedSamples = 0;
     let lostSamples = 0;
@@ -93,6 +97,9 @@ export function createSensorCard(sensor, { recorder, sessionSeconds, showMessage
 
     title.append(heading, part);
 
+    const stats = document.createElement("span");
+    stats.className = "stats";
+
     const enableLabel = document.createElement("label");
     enableLabel.className = "sensor-enable";
 
@@ -102,7 +109,7 @@ export function createSensorCard(sensor, { recorder, sessionSeconds, showMessage
 
     enableLabel.append(enableCheckbox, " Enable");
 
-    header.append(title, enableLabel);
+    header.append(title, stats);
 
     const plot = document.createElement("div");
     plot.className = "plot";
@@ -131,12 +138,11 @@ export function createSensorCard(sensor, { recorder, sessionSeconds, showMessage
         return value;
     });
 
-    const stats = document.createElement("span");
-    stats.className = "stats";
-    readout.append(stats);
-
     const settings = document.createElement("div");
     settings.className = "settings";
+
+    const primarySettings = document.createElement("div");
+    primarySettings.className = "primary-settings";
 
     const rateSelect = buildSelect(
         sensor.rates.map(rate => `${rate} Hz`),
@@ -146,7 +152,7 @@ export function createSensorCard(sensor, { recorder, sessionSeconds, showMessage
         }
     );
 
-    settings.append(labelledControl("Rate", rateSelect));
+    primarySettings.append(enableLabel, labelledControl("Rate", rateSelect));
 
     const controlSelects = sensor.controls.map(control => {
         const select = buildSelect(control.options.map(controlLabel), index => {
@@ -159,7 +165,7 @@ export function createSensorCard(sensor, { recorder, sessionSeconds, showMessage
         return select;
     });
 
-    element.append(header, plot, readout, settings);
+    element.append(header, plot, readout, primarySettings, settings);
 
     const chart = new Chart(canvas, {
         type: "line",
@@ -178,6 +184,7 @@ export function createSensorCard(sensor, { recorder, sessionSeconds, showMessage
             responsive: true,
             maintainAspectRatio: false,
             spanGaps: true,
+            events: [],
             elements: { point: { radius: 0 }, line: { tension: 0 } },
             plugins: { legend: { display: false }, tooltip: { enabled: false } },
             scales: {
@@ -214,6 +221,14 @@ export function createSensorCard(sensor, { recorder, sessionSeconds, showMessage
         },
     });
 
+    function markPlotDirty() {
+        dirty = true;
+
+        if (visible) {
+            requestRedraw();
+        }
+    }
+
     function clearPlot() {
         for (const dataset of chart.data.datasets) {
             dataset.data.length = 0;
@@ -221,7 +236,7 @@ export function createSensorCard(sensor, { recorder, sessionSeconds, showMessage
 
         buckets.fill(null);
         latestTime = 0;
-        dirty = true;
+        markPlotDirty();
     }
 
     function pushPoint(index, time, value) {
@@ -253,6 +268,10 @@ export function createSensorCard(sensor, { recorder, sessionSeconds, showMessage
                 points.push({ x: bucket.highTime, y: bucket.high });
                 points.push({ x: bucket.lowTime, y: bucket.low });
             }
+        }
+
+        if (!visible && points.length > pointsPerWindow * 4) {
+            points.splice(0, pointsPerWindow * 2);
         }
 
         buckets[index] = { slot, low: value, high: value, lowTime: time, highTime: time };
@@ -303,7 +322,7 @@ export function createSensorCard(sensor, { recorder, sessionSeconds, showMessage
             latestTime = time;
         }
 
-        dirty = true;
+        markPlotDirty();
     }
 
     function refreshStatistics() {
@@ -324,9 +343,7 @@ export function createSensorCard(sensor, { recorder, sessionSeconds, showMessage
 
         const loss = (lostSamples / (receivedSamples + lostSamples)) * 100;
 
-        stats.textContent = lostSamples === 0
-            ? `${sampleRate.toFixed(1)} Hz`
-            : `${sampleRate.toFixed(1)} Hz · ${lostSamples.toLocaleString()} lost (${loss.toFixed(1)}%)`;
+        stats.textContent = `${sampleRate.toFixed(1)} Hz\n${lostSamples.toLocaleString()} lost (${loss.toFixed(1)}%)`;
 
         stats.classList.toggle("lost", lostSamples > 0);
     }
@@ -436,8 +453,16 @@ export function createSensorCard(sensor, { recorder, sessionSeconds, showMessage
             clearPlot();
         },
 
+        setVisible(isVisible) {
+            visible = isVisible;
+
+            if (visible && dirty) {
+                requestRedraw();
+            }
+        },
+
         redraw() {
-            if (!dirty) {
+            if (!dirty || !visible) {
                 return;
             }
 

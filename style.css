@@ -143,13 +143,20 @@ h2 {
 }
 
 .link-rate.lost,
-.readout .stats.lost {
+.stats.lost {
     color: var(--record);
 }
 
-.readout .stats {
-    margin-left: auto;
+.stats {
+    flex: 0 0 38%;
+    overflow: hidden;
     color: var(--muted);
+    font-size: 0.75rem;
+    font-variant-numeric: tabular-nums;
+    line-height: 1.35;
+    text-align: right;
+    text-overflow: ellipsis;
+    white-space: pre-line;
 }
 
 .window {
@@ -230,15 +237,17 @@ select {
 
 .sensors {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(420px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(560px, 1fr));
     gap: 16px;
     padding: 16px 20px 40px;
 }
 
 .card {
-    display: flex;
-    flex-direction: column;
+    display: grid;
+    grid-template-rows: 44px 210px 88px 68px minmax(0, 1fr);
     gap: 12px;
+    height: 560px;
+    overflow: hidden;
     padding: 16px;
     background: var(--surface);
     border: 1px solid var(--border);
@@ -247,13 +256,21 @@ select {
 
 .card-header {
     display: flex;
-    align-items: center;
+    align-items: start;
     gap: 12px;
+    min-width: 0;
 }
 
 .card-title {
     flex: 1;
     min-width: 0;
+}
+
+.card-title h2,
+.card-part {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 .card-part {
@@ -280,28 +297,48 @@ select {
 
 .plot {
     position: relative;
-    flex: 1;
-    min-height: 180px;
+    width: 100%;
+    height: 100%;
+    min-height: 0;
+}
+
+.plot canvas {
+    width: 100% !important;
+    height: 100% !important;
 }
 
 .readout {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 4px 18px;
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-rows: repeat(2, minmax(0, 1fr));
+    gap: 6px 12px;
+    min-width: 0;
     font-size: 0.9rem;
     font-variant-numeric: tabular-nums;
 }
 
 .readout span {
-    display: flex;
-    align-items: baseline;
-    gap: 6px;
+    display: grid;
+    grid-template-columns: 9px minmax(0, 1fr);
+    grid-template-rows: 1fr 1fr;
+    column-gap: 6px;
+    min-width: 0;
 }
 
 .readout b {
     width: 9px;
     height: 9px;
+    grid-row: 1 / 3;
+    margin-top: 0.35em;
     border-radius: 50%;
+}
+
+.readout em,
+.readout output {
+    grid-column: 2;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 .readout em {
@@ -313,14 +350,18 @@ select {
     font-weight: 600;
 }
 
+.primary-settings,
 .settings {
     display: flex;
     flex-wrap: wrap;
     gap: 12px;
     padding-top: 4px;
     border-top: 1px solid var(--grid);
+    align-content: start;
+    min-height: 0;
 }
 
+.primary-settings label,
 .settings label {
     display: flex;
     flex: 1;
@@ -331,9 +372,25 @@ select {
     font-size: 0.8rem;
 }
 
+.primary-settings {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    align-items: end;
+}
+
+.settings {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.primary-settings .sensor-enable {
+    flex-direction: row;
+    align-items: center;
+    font-size: 0.9rem;
+}
+
 @media (max-width: 520px) {
     .sensors {
-        grid-template-columns: 1fr;
         padding: 12px;
     }
 
