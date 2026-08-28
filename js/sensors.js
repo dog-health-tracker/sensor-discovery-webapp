@@ -52,12 +52,16 @@ export const sensors = [
                 byte: 2,
                 label: "Accel range",
                 options: ["±2 g", "±4 g", "±8 g", "±16 g"],
+                csvColumn: "motion_accel_range_g",
+                csvValues: [2, 4, 8, 16],
                 default: 2,
             },
             {
                 byte: 3,
                 label: "Gyro range",
                 options: ["±125 dps", "±250 dps", "±500 dps", "±1000 dps", "±2000 dps", "±4000 dps"],
+                csvColumn: "motion_gyro_range_dps",
+                csvValues: [125, 250, 500, 1000, 2000, 4000],
                 default: 4,
             },
         ],
@@ -80,6 +84,8 @@ export const sensors = [
                 byte: 2,
                 label: "Range",
                 options: ["±15 g", "±30 g", "±60 g"],
+                csvColumn: "vibration_range_g",
+                csvValues: [15, 30, 60],
                 default: 0,
             },
         ],
@@ -102,11 +108,34 @@ export const sensors = [
                 byte: 2,
                 label: "ADC full scale",
                 options: ["4096 nA", "8192 nA", "16384 nA", "32768 nA"],
+                csvColumn: "pulse_adc_full_scale_nA",
+                csvValues: [4096, 8192, 16384, 32768],
                 default: 2,
             },
-            { byte: 3, label: "Green LED", options: ledCurrentOptions, default: 4 },
-            { byte: 4, label: "Infrared LED", options: ledCurrentOptions, default: 4 },
-            { byte: 5, label: "Red LED", options: ledCurrentOptions, default: 4 },
+            {
+                byte: 3,
+                label: "Green LED",
+                options: ledCurrentOptions,
+                csvColumn: "pulse_green_led_mA",
+                csvValues: [0, 5, 10, 20, 30, 50, 75, 100, 124],
+                default: 4,
+            },
+            {
+                byte: 4,
+                label: "Infrared LED",
+                options: ledCurrentOptions,
+                csvColumn: "pulse_infrared_led_mA",
+                csvValues: [0, 5, 10, 20, 30, 50, 75, 100, 124],
+                default: 4,
+            },
+            {
+                byte: 5,
+                label: "Red LED",
+                options: ledCurrentOptions,
+                csvColumn: "pulse_red_led_mA",
+                csvValues: [0, 5, 10, 20, 30, 50, 75, 100, 124],
+                default: 4,
+            },
         ],
     },
     {
@@ -123,12 +152,16 @@ export const sensors = [
                 byte: 2,
                 label: "Gain",
                 options: ["20 V/V", "40 V/V", "80 V/V", "160 V/V"],
+                csvColumn: "ecg_gain_V_per_V",
+                csvValues: [20, 40, 80, 160],
                 default: 1,
             },
             {
                 byte: 3,
                 label: "Low pass",
                 options: ["Bypass", "40 Hz", "100 Hz", "150 Hz"],
+                csvColumn: "ecg_low_pass_Hz",
+                csvValues: ["bypass", 40, 100, 150],
                 default: 1,
             },
         ],
@@ -147,12 +180,16 @@ export const sensors = [
                 byte: 2,
                 label: "Drive current",
                 options: ["8 µA", "16 µA", "32 µA", "48 µA", "64 µA", "80 µA", "96 µA"],
+                csvColumn: "respiration_drive_current_uA",
+                csvValues: [8, 16, 32, 48, 64, 80, 96],
                 default: 2,
             },
             {
                 byte: 3,
                 label: "Gain",
                 options: ["10 V/V", "20 V/V", "40 V/V", "80 V/V"],
+                csvColumn: "respiration_gain_V_per_V",
+                csvValues: [10, 20, 40, 80],
                 default: 1,
             },
         ],
@@ -171,6 +208,8 @@ export const sensors = [
                 byte: 2,
                 label: "Band",
                 options: ["Heart 20–150 Hz", "Lung 150–1000 Hz", "Wide 20–4000 Hz"],
+                csvColumn: "sound_band",
+                csvValues: ["heart", "lung", "wide"],
                 default: 0,
             },
         ],
@@ -189,6 +228,8 @@ export const sensors = [
                 byte: 2,
                 label: "Averaging",
                 options: ["None", "8 samples", "32 samples", "64 samples"],
+                csvColumn: "temperature_averaging_samples",
+                csvValues: [1, 8, 32, 64],
                 default: 1,
             },
         ],
@@ -207,6 +248,8 @@ export const sensors = [
                 byte: 2,
                 label: "Oversampling",
                 options: ["×1", "×4", "×16", "×64", "×128"],
+                csvColumn: "pressure_oversampling",
+                csvValues: [1, 4, 16, 64, 128],
                 default: 2,
             },
         ],
@@ -260,4 +303,12 @@ export function controlIndex(control, value) {
 
 export function controlLabel(option) {
     return typeof option === "string" ? option : option.label;
+}
+
+export function controlCsvValue(control, value) {
+    const index = typeof control.options[0] === "string"
+        ? value
+        : control.options.findIndex(option => option.value === value);
+
+    return control.csvValues[index] ?? "";
 }

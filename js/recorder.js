@@ -1,4 +1,4 @@
-import { sensors } from "./sensors.js";
+import { controlCsvValue, sensors } from "./sensors.js";
 
 // Sensors interleave, so rows arrive slightly out of order. Buffering twice the
 // flush size and sorting before every flush restores a monotonic time column,
@@ -7,22 +7,34 @@ const bufferedRows = 8192;
 const flushedRows = 4096;
 
 export function createRecorder() {
-    const columns = sensors.flatMap(sensor => sensor.channels.map(channel => channel.column));
+    const metadataColumns = [
+        "sensor",
+        "rate_Hz",
+        "device_dropped_before",
+        "total_lost_before",
+    ];
+    const columns = sensors.flatMap(sensor => [
+        ...sensor.channels.map(channel => channel.column),
+        ...sensor.controls.map(control => control.csvColumn),
+    ]);
 
     const layouts = new Map();
     let offset = 0;
 
     for (const sensor of sensors) {
+        const width = sensor.channels.length + sensor.controls.length;
+
         layouts.set(sensor.key, {
             lead: ",".repeat(offset),
-            trail: ",".repeat(columns.length - offset - sensor.channels.length),
+            trail: ",".repeat(columns.length - offset - width),
             decimals: sensor.channels.map(channel => channel.decimals),
+            controls: sensor.controls,
         });
 
-        offset += sensor.channels.length;
+        offset += width;
     }
 
-    const header = ["time_s", ...columns].join(",");
+    const header = ["time_s", ...metadataColumns, ...columns].join(",");
 
     let chunks = [];
     let buffer = [];
@@ -38,7 +50,13 @@ export function createRecorder() {
 
         buffer.sort((first, second) => first.time - second.time);
 
-        chunks.push(buffer.slice(0, count).map(entry => entry.row).join("\n") + "\n");
+        if (startSeconds === null) {
+            startSeconds = buffer[0].time;
+        }
+
+        chunks.push(buffer.slice(0, count).map(entry =>
+            `${(entry.time - startSeconds).toFixed(6)},${entry.fields}`
+        ).join("\n") + "\n");
         buffer = buffer.slice(count);
     }
 
@@ -69,24 +87,31 @@ export function createRecorder() {
             flush(buffer.length);
         },
 
-        add(sensor, timeSeconds, values) {
+        add(sensor, timeSeconds, values, config, loss) {
             if (!recording) {
                 return;
             }
 
-            if (startSeconds === null) {
-                startSeconds = timeSeconds;
-            }
-
             const layout = layouts.get(sensor.key);
-            const time = timeSeconds - startSeconds;
-            const fields = values.map((value, index) =>
+            const samples = values.map((value, index) =>
                 Number.isFinite(value) ? value.toFixed(layout.decimals[index]) : ""
             );
+            const settings = layout.controls.map(control =>
+                controlCsvValue(control, config[control.byte])
+            );
+            const metadata = [
+                sensor.key,
+                sensor.rates[config[1]] ?? "",
+                loss?.deviceDropped ?? "",
+                loss?.totalLost ?? "",
+            ];
 
             buffer.push({
-                time,
-                row: `${time.toFixed(6)},${layout.lead}${fields.join(",")}${layout.trail}`,
+                time: timeSeconds,
+                fields: `${metadata.join(",")},${layout.lead}${[
+                    ...samples,
+                    ...settings,
+                ].join(",")}${layout.trail}`,
             });
 
             rows++;

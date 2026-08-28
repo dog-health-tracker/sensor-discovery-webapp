@@ -55,6 +55,7 @@ export function createSensorCard(
     { recorder, sessionSeconds, showMessage, requestRedraw }
 ) {
     const config = defaultConfig(sensor);
+    const appliedConfig = defaultConfig(sensor);
     const savedConfig = JSON.parse(localStorage.getItem(`sensor-disc.${sensor.key}`));
 
     if (Array.isArray(savedConfig) && savedConfig.length === configBytes) {
@@ -289,6 +290,7 @@ export function createSensorCard(
         const applied = new Uint8Array(view.buffer, view.byteOffset, view.byteLength);
 
         // Enable is the saved recording choice, not the device's current stream state.
+        appliedConfig.set(applied);
         config.set(applied.subarray(1), 1);
         packetEndMicroseconds = null;
         refreshControls();
@@ -317,7 +319,7 @@ export function createSensorCard(
         const startMicroseconds =
             view.getUint32(0, true) + view.getUint32(4, true) * 4294967296;
 
-        const rate = sensor.rates[config[1]] ?? sensor.rates[0];
+        const rate = sensor.rates[appliedConfig[1]] ?? sensor.rates[0];
         const intervalMicroseconds = 1e6 / rate;
         const values = new Array(channelCount);
 
@@ -325,8 +327,9 @@ export function createSensorCard(
         const gapMicroseconds =
             packetEndMicroseconds === null ? 0 : startMicroseconds - packetEndMicroseconds;
         const gapSamples = Math.max(0, Math.round(gapMicroseconds / intervalMicroseconds));
+        const totalLost = Math.max(reportedDropped, gapSamples);
 
-        lostSamples += Math.max(reportedDropped, gapSamples);
+        lostSamples += totalLost;
         receivedSamples += sampleCount;
         receivedBytes += view.byteLength;
         rateSamples += sampleCount;
@@ -346,7 +349,13 @@ export function createSensorCard(
                 offset += 4;
             }
 
-            recorder.add(sensor, time, values);
+            recorder.add(
+                sensor,
+                time,
+                values,
+                appliedConfig,
+                sample === 0 ? { deviceDropped: reportedDropped, totalLost } : null
+            );
             latestTime = time;
         }
 
