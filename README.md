@@ -55,12 +55,12 @@ Each card shows the sample rate it is actually receiving, averaged over a
 second, and the record bar shows the payload the whole app is receiving in
 kB/s. Both are measured, not derived from the configured rate.
 
-Loss is exact rather than inferred. Every packet carries a count of the samples
-the device gathered but could not send, and every packet carries the device
+Device-side loss is exact: every packet carries a count of the samples the
+device gathered but could not send. Every packet also carries the device
 timestamp of its first sample. A gap in the timestamps wider than the reported
-count means a packet went missing on the link rather than in the device, so the
-card takes whichever of the two is larger and never counts the same loss twice.
-A card turns red once it has lost anything.
+count identifies additional loss on the link, so the card takes whichever of
+the two is larger and never counts the same loss twice. A card turns red once
+it has lost anything.
 
 The kB/s figure is payload the app received. It is not link utilisation, which
 would have to include the link layer overhead, the PHY rate and retransmissions
@@ -73,12 +73,22 @@ sensor. **Stop and download** stops them and downloads the file. A disconnect
 also stops the recording and downloads the captured data. The browser keeps
 the enabled sensors, sensor settings and chart window across reloads.
 
-One row per sample. `time_s` counts from the first recorded sample, columns
-carry ASCII names with the unit on the end, and a cell is blank when that
-sensor had no sample at that instant. Rows come out in time order.
+There is one row per sample. `time_s` counts from the earliest recorded sample
+and rows come out in time order. `sensor` identifies the source, while the wide
+sample columns carry ASCII names with the unit on the end and remain blank for
+other sensors.
+
+`rate_Hz` and the sensor-specific setting columns contain the applied settings,
+not merely the selections requested by the browser. They are repeated on every
+sample so setting changes can be located directly in the data. Loss applies to
+a packet rather than each sample: `device_dropped_before` and
+`total_lost_before` are populated only on the packet's first sample. Summing
+either column therefore does not count a multi-sample packet more than once.
+`total_lost_before` includes additional loss inferred from timestamp gaps.
 
 ```csv
-time_s,motion_accel_x_g,…,ecg_mV,…,temperature_degC,…
-0.000000,0.0317,…,,…,,…
-0.003906,,…,0.0878,…,,…
+time_s,sensor,rate_Hz,device_dropped_before,total_lost_before,motion_accel_x_g,…,motion_accel_range_g,…,ecg_mV,…
+0.000000,motion,240,0,0,0.0317,…,8,…,,…
+0.004167,motion,240,,,0.0309,…,8,…,,…
+0.005000,ecg,256,0,0,,…,,…,0.0878,…
 ```

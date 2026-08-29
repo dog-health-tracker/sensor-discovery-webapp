@@ -16,7 +16,7 @@ import {
     packetHeaderBytes,
 } from "./sensors.js";
 
-import { hasCharacteristic, subscribe, writeValue } from "./bluetooth.js";
+import { hasCharacteristic, readValue, subscribe, writeValue } from "./bluetooth.js";
 
 Chart.register(LineController, LineElement, PointElement, LinearScale);
 
@@ -55,6 +55,7 @@ export function createSensorCard(
     { recorder, sessionSeconds, showMessage, requestRedraw }
 ) {
     const config = defaultConfig(sensor);
+    const appliedConfig = defaultConfig(sensor);
     const savedConfig = JSON.parse(localStorage.getItem(`sensor-disc.${sensor.key}`));
 
     if (Array.isArray(savedConfig) && savedConfig.length === configBytes) {
@@ -277,6 +278,35 @@ export function createSensorCard(
         buckets[index] = { slot, low: value, high: value, lowTime: time, highTime: time };
     }
 
+    function receiveConfig(view) {
+        if (view.byteLength !== configBytes) {
+            showMessage(
+                `${sensor.name}: received a ${view.byteLength}-byte config, expected ${configBytes}.`
+            );
+
+            return;
+        }
+
+        const applied = new Uint8Array(view.buffer, view.byteOffset, view.byteLength);
+
+        // Enable is the saved recording choice, not the device's current stream state.
+        appliedConfig.set(applied);
+        config.set(applied.subarray(1), 1);
+        packetEndMicroseconds = null;
+        refreshControls();
+        localStorage.setItem(`sensor-disc.${sensor.key}`, JSON.stringify(Array.from(config)));
+    }
+
+    async function writeConfig(value) {
+        await writeValue(sensor.configUuid, value);
+
+        const applied = await readValue(sensor.configUuid);
+
+        if (applied) {
+            receiveConfig(applied);
+        }
+    }
+
     function receivePacket(view) {
         const channelCount = sensor.channels.length;
         const sampleBytes = channelCount * 4;
@@ -289,7 +319,7 @@ export function createSensorCard(
         const startMicroseconds =
             view.getUint32(0, true) + view.getUint32(4, true) * 4294967296;
 
-        const rate = sensor.rates[config[1]] ?? sensor.rates[0];
+        const rate = sensor.rates[appliedConfig[1]] ?? sensor.rates[0];
         const intervalMicroseconds = 1e6 / rate;
         const values = new Array(channelCount);
 
@@ -297,8 +327,9 @@ export function createSensorCard(
         const gapMicroseconds =
             packetEndMicroseconds === null ? 0 : startMicroseconds - packetEndMicroseconds;
         const gapSamples = Math.max(0, Math.round(gapMicroseconds / intervalMicroseconds));
+        const totalLost = Math.max(reportedDropped, gapSamples);
 
-        lostSamples += Math.max(reportedDropped, gapSamples);
+        lostSamples += totalLost;
         receivedSamples += sampleCount;
         receivedBytes += view.byteLength;
         rateSamples += sampleCount;
@@ -318,7 +349,13 @@ export function createSensorCard(
                 offset += 4;
             }
 
-            recorder.add(sensor, time, values);
+            recorder.add(
+                sensor,
+                time,
+                values,
+                appliedConfig,
+                sample === 0 ? { deviceDropped: reportedDropped, totalLost } : null
+            );
             latestTime = time;
         }
 
@@ -375,7 +412,7 @@ export function createSensorCard(
             return;
         }
 
-        writeValue(sensor.configUuid, Uint8Array.from(config)).catch(error => {
+        writeConfig(Uint8Array.from(config)).catch(error => {
             showMessage(`${sensor.name}: ${error.message}`);
         });
     }
@@ -399,6 +436,7 @@ export function createSensorCard(
                 return;
             }
 
+            await subscribe(sensor.configUuid, receiveConfig);
             await subscribe(sensor.dataUuid, receivePacket);
         },
 
@@ -422,7 +460,7 @@ export function createSensorCard(
             }
 
             try {
-                await writeValue(sensor.configUuid, Uint8Array.from(config));
+                await writeConfig(Uint8Array.from(config));
 
                 return config[0] === 1;
             } catch (error) {
@@ -441,7 +479,7 @@ export function createSensorCard(
             stoppedConfig[0] = 0;
 
             try {
-                await writeValue(sensor.configUuid, stoppedConfig);
+                await writeConfig(stoppedConfig);
             } catch (error) {
                 showMessage(`${sensor.name}: ${error.message}`);
             }
