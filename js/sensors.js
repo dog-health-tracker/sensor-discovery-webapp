@@ -200,19 +200,14 @@ export const sensors = [
         part: "V2S200D",
         dataUuid: "5e550601-1487-4453-8e57-6325943ddeba",
         configUuid: "5e550602-1487-4453-8e57-6325943ddeba",
-        channels: [{ key: "envelope", label: "Envelope", unit: "dBFS", decimals: 2 }],
+        channels: [
+            { key: "heart", label: "Heart", unit: "dBFS", decimals: 2 },
+            { key: "breathing", label: "Breathing", unit: "dBFS", decimals: 2 },
+            { key: "bark", label: "Bark", unit: "dBFS", decimals: 2 },
+        ],
         rates: [25, 50, 100, 200],
         defaultRate: 2,
-        controls: [
-            {
-                byte: 2,
-                label: "Band",
-                options: ["Heart 20–150 Hz", "Lung 150–1000 Hz", "Wide 20–4000 Hz"],
-                csvColumn: "sound_band",
-                csvValues: ["heart", "lung", "wide"],
-                default: 0,
-            },
-        ],
+        controls: [],
     },
     {
         key: "temperature",
